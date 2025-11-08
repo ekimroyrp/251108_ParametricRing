@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
-import { ProfileShape, SweepParameters } from '../types/profile';
+import { ProfileShape, SculptSettings, SweepParameters } from '../types/profile';
 import { useEditorStore } from '../ui/store';
 import { sampleProfilePoints } from '../utils/profile';
 
@@ -17,6 +17,12 @@ export class SceneManager {
   private frameId: number | null = null;
   private ringMesh: THREE.Mesh | null = null;
   private unsubscribe: () => void;
+  private raycaster = new THREE.Raycaster();
+  private pointer = new THREE.Vector2();
+  private sculptSettings: SculptSettings = { ...useEditorStore.getState().sculpt };
+  private sculptState = { active: false, pointerId: null as number | null };
+  private tempPosition = new THREE.Vector3();
+  private tempNormal = new THREE.Vector3();
 
   constructor(private canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -55,16 +61,28 @@ export class SceneManager {
       useEditorStore.getState().sweep
     );
 
-    this.unsubscribe = useEditorStore.subscribe((state) =>
-      this.updateRingMesh(state.profile, state.sweep)
-    );
+    this.unsubscribe = useEditorStore.subscribe((state, prev) => {
+      if (state.profile !== prev.profile || state.sweep !== prev.sweep) {
+        this.updateRingMesh(state.profile, state.sweep);
+      }
+      this.sculptSettings = state.sculpt;
+      if (!this.sculptSettings.enabled && !this.sculptState.active) {
+        this.controls.enabled = true;
+      }
+    });
 
     window.addEventListener('resize', this.handleResize);
+    this.canvas.addEventListener('pointerdown', this.handleCanvasPointerDown);
+    window.addEventListener('pointermove', this.handleCanvasPointerMove);
+    window.addEventListener('pointerup', this.handleCanvasPointerUp);
     this.startLoop();
   }
 
   public dispose() {
     window.removeEventListener('resize', this.handleResize);
+    this.canvas.removeEventListener('pointerdown', this.handleCanvasPointerDown);
+    window.removeEventListener('pointermove', this.handleCanvasPointerMove);
+    window.removeEventListener('pointerup', this.handleCanvasPointerUp);
     this.controls.dispose();
     this.renderer.dispose();
     this.envTarget?.dispose();
@@ -112,6 +130,71 @@ export class SceneManager {
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
   };
+
+  private handleCanvasPointerDown = (event: PointerEvent) => {
+    if (!this.sculptSettings.enabled) return;
+    this.canvas.setPointerCapture(event.pointerId);
+    this.sculptState = { active: true, pointerId: event.pointerId };
+    this.controls.enabled = false;
+  };
+
+  private handleCanvasPointerMove = (event: PointerEvent) => {
+    if (!this.sculptState.active || !this.sculptSettings.enabled) return;
+    const intensity = (-event.movementY + event.movementX * 0.35) * 0.002;
+    if (intensity === 0) return;
+    this.applySculptStroke(event, intensity * this.sculptSettings.strength);
+  };
+
+  private handleCanvasPointerUp = (event: PointerEvent) => {
+    if (this.sculptState.pointerId !== event.pointerId) return;
+    this.canvas.releasePointerCapture?.(event.pointerId);
+    this.sculptState = { active: false, pointerId: null };
+    this.controls.enabled = true;
+  };
+
+  private applySculptStroke(event: PointerEvent, deltaStrength: number) {
+    if (!this.ringMesh) return;
+    this.updatePointerFromEvent(event);
+    this.raycaster.setFromCamera(this.pointer, this.camera);
+    const hit = this.raycaster.intersectObject(this.ringMesh, false)[0];
+    if (!hit) return;
+
+    const geometry = this.ringMesh.geometry as THREE.BufferGeometry;
+    const positionAttr = geometry.getAttribute('position') as THREE.BufferAttribute;
+    const normalAttr = geometry.getAttribute('normal') as THREE.BufferAttribute;
+    const positions = positionAttr.array as Float32Array;
+    const normals = normalAttr.array as Float32Array;
+    const brushRadius = this.sculptSettings.radius;
+
+    for (let i = 0; i < positions.length; i += 3) {
+      this.tempPosition.set(positions[i], positions[i + 1], positions[i + 2]);
+      const distance = this.tempPosition.distanceTo(hit.point);
+      if (distance > brushRadius) continue;
+      const proximity = 1 - distance / brushRadius;
+      const falloff = this.sculptFalloff(proximity);
+      this.tempNormal.set(normals[i], normals[i + 1], normals[i + 2]);
+      const offset = deltaStrength * falloff;
+      this.tempPosition.addScaledVector(this.tempNormal, offset);
+      positions[i] = this.tempPosition.x;
+      positions[i + 1] = this.tempPosition.y;
+      positions[i + 2] = this.tempPosition.z;
+    }
+
+    positionAttr.needsUpdate = true;
+    geometry.computeVertexNormals();
+    normalAttr.needsUpdate = true;
+  }
+
+  private updatePointerFromEvent(event: PointerEvent) {
+    const rect = this.canvas.getBoundingClientRect();
+    this.pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    this.pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+  }
+
+  private sculptFalloff(value: number) {
+    const clamped = THREE.MathUtils.clamp(value, 0, 1);
+    return THREE.MathUtils.smootherstep(clamped, 0, 1);
+  }
 
   private updateRingMesh(profile: ProfileShape, sweep: SweepParameters) {
     if (this.ringMesh) {

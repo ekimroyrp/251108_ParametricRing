@@ -12,11 +12,16 @@ type PaneParams = {
 };
 
 type ControllerMap = Partial<Record<keyof PaneParams, Controller>>;
+type SculptControllerMap = {
+  enabled?: Controller;
+};
 
 export class ControlPanel {
   private gui: GUI;
   private params: PaneParams;
   private controllers: ControllerMap = {};
+  private sculptParams = { ...useEditorStore.getState().sculpt };
+  private sculptControllers: SculptControllerMap = {};
 
   constructor(host: HTMLElement) {
     this.params = { ...useEditorStore.getState().sweep };
@@ -71,6 +76,13 @@ export class ControlPanel {
       .onChange((value: number) =>
         useEditorStore.getState().setSweep({ profileResolution: value })
       );
+
+    this.sculptControllers.enabled = this.gui
+      .add(this.sculptParams, 'enabled')
+      .name('Sculpt Mode')
+      .onChange((value: boolean) =>
+        useEditorStore.getState().setSculpt({ enabled: value })
+      );
   }
 
   private addActions() {
@@ -88,11 +100,17 @@ export class ControlPanel {
 
   private syncFromStore() {
     this.params = { ...useEditorStore.getState().sweep };
+    this.sculptParams = { ...useEditorStore.getState().sculpt };
     (Object.keys(this.controllers) as (keyof PaneParams)[]).forEach((key) => {
       const controller = this.controllers[key];
       if (controller) {
         controller.setValue(this.params[key]);
       }
     });
+
+    const sculptController = this.sculptControllers.enabled;
+    if (sculptController) {
+      sculptController.setValue(this.sculptParams.enabled);
+    }
   }
 }

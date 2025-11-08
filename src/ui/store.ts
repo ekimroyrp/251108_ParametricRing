@@ -1,6 +1,11 @@
 import { v4 as uuid } from 'uuid';
 import { createStore } from 'zustand/vanilla';
-import { ProfileShape, ProfilePoint, SweepParameters } from '../types/profile';
+import {
+  ProfileShape,
+  ProfilePoint,
+  SweepParameters,
+  SculptSettings
+} from '../types/profile';
 import { normalizeAngle, orderProfilePoints } from '../utils/profile';
 
 const clamp = (value: number, min: number, max: number) =>
@@ -24,11 +29,19 @@ const defaultSweep: SweepParameters = {
   profileResolution: 72
 };
 
+const defaultSculpt: SculptSettings = {
+  enabled: false,
+  radius: 0.3,
+  strength: 0.65
+};
+
 type EditorStore = {
   profile: ProfileShape;
   sweep: SweepParameters;
+  sculpt: SculptSettings;
   updatePoint: (id: string, updater: (point: ProfilePoint) => ProfilePoint) => void;
   setSweep: (partial: Partial<SweepParameters>) => void;
+  setSculpt: (partial: Partial<SculptSettings>) => void;
   resetProfile: () => void;
   resetSweep: () => void;
 };
@@ -36,6 +49,7 @@ type EditorStore = {
 export const useEditorStore = createStore<EditorStore>((set) => ({
   profile: createDefaultProfile(),
   sweep: defaultSweep,
+  sculpt: defaultSculpt,
   updatePoint: (id, updater) =>
     set((state) => ({
       profile: {
@@ -68,6 +82,10 @@ export const useEditorStore = createStore<EditorStore>((set) => ({
         }
       };
     }),
+  setSculpt: (partial) =>
+    set((state) => ({
+      sculpt: { ...state.sculpt, ...partial }
+    })),
   resetProfile: () => set({ profile: createDefaultProfile() }),
   resetSweep: () => set({ sweep: defaultSweep })
 }));

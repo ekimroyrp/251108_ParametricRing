@@ -17,7 +17,14 @@ export type SweepParameters = {
   profileResolution: number;
 };
 
+export type SculptSettings = {
+  enabled: boolean;
+  radius: number;
+  strength: number;
+};
+
 export type EditorState = {
   profile: ProfileShape;
   sweep: SweepParameters;
+  sculpt: SculptSettings;
 };
