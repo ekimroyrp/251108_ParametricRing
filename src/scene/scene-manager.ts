@@ -147,8 +147,14 @@ export class SceneManager {
     const baseRadius = BASE_RING_RADIUS * sweep.radialScale;
     const up = new THREE.Vector3(0, 1, 0);
 
+    const twistAmplitude = THREE.MathUtils.degToRad(sweep.twist);
+
     for (let i = 0; i <= segments; i++) {
       const segmentRatio = i / segments;
+      const centeredRatio = segmentRatio - 0.5;
+      const mirrored = 1 - Math.abs(1 - segmentRatio * 2); // 0 at seams, 1 at center
+      const twistProgress = THREE.MathUtils.smootherstep(mirrored, 0, 1); // smooth 0→1→0 ramp
+
       const theta = segmentRatio * Math.PI * 2;
       const center = new THREE.Vector3(
         Math.cos(theta) * baseRadius,
@@ -157,16 +163,12 @@ export class SceneManager {
       );
       const outward = center.clone().normalize();
       const tangent = new THREE.Vector3(-Math.sin(theta), 0, Math.cos(theta));
-      const twist = THREE.MathUtils.degToRad(sweep.twist) * segmentRatio;
+      const twist = twistAmplitude * twistProgress;
       const cosT = Math.cos(twist);
       const sinT = Math.sin(twist);
-      const ease = THREE.MathUtils.smootherstep(segmentRatio, 0, 1);
-      const variance = THREE.MathUtils.lerp(
-        1 - sweep.scaleVariance,
-        1 + sweep.scaleVariance,
-        ease
-      );
-      const scale = sweep.profileScale * variance;
+      const symmetryBlend = Math.pow(twistProgress, 0.85);
+      const scaleVariance = 1 + sweep.scaleVariance * symmetryBlend;
+      const scale = sweep.profileScale * scaleVariance;
 
       profileSamples.forEach((sample, j) => {
         const localXRaw = sample.x;
@@ -197,8 +199,8 @@ export class SceneManager {
         const c = (i + 1) * crossSection + ((j + 1) % crossSection);
         const d = i * crossSection + ((j + 1) % crossSection);
 
-        indices.push(a, b, d);
-        indices.push(b, c, d);
+        indices.push(a, d, b);
+        indices.push(b, d, c);
       }
     }
 
