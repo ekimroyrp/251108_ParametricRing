@@ -1,7 +1,9 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { ProfileShape, SweepParameters } from '../types/profile';
 import { useEditorStore } from '../ui/store';
+import { sampleProfilePoints } from '../utils/profile';
 
 const BASE_RING_RADIUS = 1.35;
 
@@ -10,6 +12,8 @@ export class SceneManager {
   private camera: THREE.PerspectiveCamera;
   private scene: THREE.Scene;
   private controls: OrbitControls;
+  private pmrem: THREE.PMREMGenerator;
+  private envTarget: THREE.WebGLRenderTarget | null = null;
   private frameId: number | null = null;
   private ringMesh: THREE.Mesh | null = null;
   private unsubscribe: () => void;
@@ -38,6 +42,12 @@ export class SceneManager {
     this.controls.minDistance = 2;
     this.controls.target.set(0, 0, 0);
 
+    this.pmrem = new THREE.PMREMGenerator(this.renderer);
+    const envScene = new RoomEnvironment();
+    this.envTarget = this.pmrem.fromScene(envScene, 0.04);
+    this.scene.environment = this.envTarget.texture;
+    envScene.dispose();
+
     this.configureLights();
     this.buildGround();
     this.updateRingMesh(
@@ -57,6 +67,8 @@ export class SceneManager {
     window.removeEventListener('resize', this.handleResize);
     this.controls.dispose();
     this.renderer.dispose();
+    this.envTarget?.dispose();
+    this.pmrem.dispose();
     this.unsubscribe?.();
     if (this.frameId) cancelAnimationFrame(this.frameId);
   }
@@ -123,13 +135,15 @@ export class SceneManager {
 
   private buildParametricGeometry(profile: ProfileShape, sweep: SweepParameters) {
     const segments = Math.max(8, sweep.profileCount);
-    const profilePoints = profile.points.length;
-    const vertexCount = (segments + 1) * profilePoints;
+    const profileSamples = sampleProfilePoints(profile, sweep.profileResolution);
+    const crossSection = profileSamples.length;
+    const vertexCount = (segments + 1) * crossSection;
 
     const positions = new Float32Array(vertexCount * 3);
-    const normals = new Float32Array(vertexCount * 3);
     const uvs = new Float32Array(vertexCount * 2);
 
+    let positionIndex = 0;
+    let uvIndex = 0;
     const baseRadius = BASE_RING_RADIUS * sweep.radialScale;
     const up = new THREE.Vector3(0, 1, 0);
 
@@ -143,47 +157,45 @@ export class SceneManager {
       );
       const outward = center.clone().normalize();
       const tangent = new THREE.Vector3(-Math.sin(theta), 0, Math.cos(theta));
-      const binormal = new THREE.Vector3().crossVectors(tangent, outward).normalize();
-
       const twist = THREE.MathUtils.degToRad(sweep.twist) * segmentRatio;
       const cosT = Math.cos(twist);
       const sinT = Math.sin(twist);
+      const ease = THREE.MathUtils.smootherstep(segmentRatio, 0, 1);
+      const variance = THREE.MathUtils.lerp(
+        1 - sweep.scaleVariance,
+        1 + sweep.scaleVariance,
+        ease
+      );
+      const scale = sweep.profileScale * variance;
 
-      profile.points.forEach((point, j) => {
-        const idx = i * profilePoints + j;
-        const radius = point.radius * 0.45 * sweep.profileScale;
-        const localX = Math.cos(point.angle) * radius;
-        const localY = Math.sin(point.angle) * radius;
+      profileSamples.forEach((sample, j) => {
+        const localXRaw = sample.x;
+        const localYRaw = sample.y;
 
-        const rotatedX = localX * cosT - localY * sinT;
-        const rotatedY = localX * sinT + localY * cosT;
+        const rotatedX = localXRaw * cosT - localYRaw * sinT;
+        const rotatedY = localXRaw * sinT + localYRaw * cosT;
 
-        const position = center
-          .clone()
-          .add(outward.clone().multiplyScalar(rotatedX))
-          .add(up.clone().multiplyScalar(rotatedY));
+        const offset = outward.clone().multiplyScalar(rotatedX * scale).add(
+          up.clone().multiplyScalar(rotatedY * scale)
+        );
+        const position = center.clone().add(offset);
 
-        positions[idx * 3] = position.x;
-        positions[idx * 3 + 1] = position.y;
-        positions[idx * 3 + 2] = position.z;
+        positions[positionIndex++] = position.x;
+        positions[positionIndex++] = position.y;
+        positions[positionIndex++] = position.z;
 
-        const normal = position.clone().sub(center).normalize();
-        normals[idx * 3] = normal.x;
-        normals[idx * 3 + 1] = normal.y;
-        normals[idx * 3 + 2] = normal.z;
-
-        uvs[idx * 2] = segmentRatio;
-        uvs[idx * 2 + 1] = j / profilePoints;
+        uvs[uvIndex++] = segmentRatio;
+        uvs[uvIndex++] = j / crossSection;
       });
     }
 
     const indices: number[] = [];
     for (let i = 0; i < segments; i++) {
-      for (let j = 0; j < profilePoints; j++) {
-        const a = i * profilePoints + j;
-        const b = (i + 1) * profilePoints + j;
-        const c = (i + 1) * profilePoints + ((j + 1) % profilePoints);
-        const d = i * profilePoints + ((j + 1) % profilePoints);
+      for (let j = 0; j < crossSection; j++) {
+        const a = i * crossSection + j;
+        const b = (i + 1) * crossSection + j;
+        const c = (i + 1) * crossSection + ((j + 1) % crossSection);
+        const d = i * crossSection + ((j + 1) % crossSection);
 
         indices.push(a, b, d);
         indices.push(b, c, d);
@@ -192,7 +204,6 @@ export class SceneManager {
 
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    geometry.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
     geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
     geometry.setIndex(indices);
     geometry.computeVertexNormals();

@@ -3,15 +3,16 @@
 251108_ParametricRing is an interactive Three.js playground for designing parametric ring geometries. A sleek HUD overlays the WebGL canvas, letting you sculpt a 2D profile and sweep it around a circular path to experiment with unique jewelry-inspired forms. The experience aims for instant visual feedback, tactile controls, and an Apple-like aesthetic.
 
 ## Features
-- Real-time Three.js renderer with physically based shading, fog, and orbit controls.
-- Lower-left profile editor with draggable control points on a circular workspace.
-- Glassmorphic control pane for profile count, twist, radial scale, and profile scale.
-- Live remeshing pipeline that rebuilds the swept mesh whenever parameters change.
-- Hot-reload friendly code structure with clean separation of scene, UI, and state logic.
+- Real-time Three.js renderer with PBR lighting, orbit controls, and HDR room environment reflections.
+- Lower-left profile editor with draggable control points plus a live preview of the smoothed spline curve.
+- Glassmorphic control pod for profile count, twist, radius, cross-section scale, scale variance, and sampling density.
+- Fully parametric sweep pipeline that rebuilds a closed mesh with Catmull-Rom sampled profiles and gradual twisting/scaling.
+- Reset actions for both the control points and the slider stack to quickly explore new looks.
+- Hot-reload friendly TypeScript structure separating rendering, UI, state, and geometry helpers.
 
 ## Getting Started
 1. Install dependencies: `npm install`
-2. Start the dev server: `npm run dev`
+2. Start the dev server either by running `dev.bat` (double-click or via terminal) or executing `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass; npm run dev`.
 3. Open the Vite-served URL (usually http://localhost:5173) to interact with the editor.
 
 ## Controls

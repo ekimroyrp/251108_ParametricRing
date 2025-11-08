@@ -44,13 +44,44 @@ body,
   width: 100%;
   background: transparent !important;
   color: inherit;
-  font-size: 0.9rem;
+  font-size: 0.95rem;
+  --text-color: #f3f4f7;
+  --title-height: 28px;
 }
 
-#ui-root .lil-gui .controller {
+.lil-gui .title {
+  letter-spacing: 0.08em;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+}
+
+.lil-gui .controller {
   background: rgba(255, 255, 255, 0.04);
   border-radius: 10px;
   margin-bottom: 0.35rem;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.lil-gui .controller input,
+.lil-gui .controller .slider {
+  color: inherit;
+}
+
+.lil-gui button {
+  width: 100%;
+  border: none;
+  border-radius: 12px;
+  padding: 0.45rem 0.75rem;
+  margin-top: 0.4rem;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04));
+  color: inherit;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.lil-gui button:hover {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.08));
+  transform: translateY(-1px);
 }
 
 #profile-editor-root {

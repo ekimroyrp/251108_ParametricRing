@@ -13,6 +13,8 @@ export type SweepParameters = {
   twist: number; // degrees across full loop
   radialScale: number;
   profileScale: number;
+  scaleVariance: number;
+  profileResolution: number;
 };
 
 export type EditorState = {

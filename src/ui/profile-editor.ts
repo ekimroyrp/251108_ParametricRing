@@ -1,4 +1,5 @@
 import { ProfilePoint } from '../types/profile';
+import { normalizeAngle, orderProfilePoints, sampleProfilePoints } from '../utils/profile';
 import { useEditorStore } from './store';
 
 type PointerState = {
@@ -65,7 +66,7 @@ export class ProfileEditor {
     const y = event.clientY - rect.top;
     const dx = x - cx;
     const dy = y - cy;
-    const angle = Math.atan2(dy, dx);
+    const angle = normalizeAngle(Math.atan2(dy, dx));
     const magnitude = clamp(Math.sqrt(dx * dx + dy * dy) / radius, 0.1, 0.95);
 
     useEditorStore.getState().updatePoint(this.pointer.pointId, (point) => ({
@@ -122,7 +123,7 @@ export class ProfileEditor {
     ctx.setLineDash([]);
 
     const { points } = useEditorStore.getState().profile;
-    const ordered = [...points].sort((a, b) => a.angle - b.angle);
+    const ordered = orderProfilePoints(points);
     ctx.strokeStyle = 'rgba(96,150,255,0.8)';
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -139,6 +140,19 @@ export class ProfileEditor {
         cy + Math.sin(first.angle) * first.radius * radius
       );
     }
+    ctx.stroke();
+
+    const smoothPath = sampleProfilePoints({ points }, 128);
+    ctx.strokeStyle = 'rgba(173,215,255,0.35)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    smoothPath.forEach((point, index) => {
+      const px = cx + point.x * radius;
+      const py = cy + point.y * radius;
+      if (index === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    });
+    ctx.closePath();
     ctx.stroke();
 
     points.forEach((point) => {
