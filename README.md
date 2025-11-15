@@ -25,13 +25,6 @@
 - Orbit the camera with the mouse (left-drag to rotate, wheel to zoom, right-drag to pan).
 
 ## Deployment
-The site is deployed via GitHub Pages at [ekimroyrp.github.io/251108_ParametricRing](https://ekimroyrp.github.io/251108_ParametricRing/).
-
-To build locally:
-1. `npm install`
-2. `npm run build` – outputs the static site into `dist/` with relative asset paths.
-
-To update the GitHub Pages deployment:
-1. `git checkout gh-pages`
-2. Replace branch contents with the latest `dist` artifacts (or use `npm run build && git checkout gh-pages && rm -rf * && cp -r ../main/dist/* .` workflow, ensuring only static files remain).
-3. `git commit -am "deploy: update gh-pages"` and `git push origin gh-pages`.
+- **Local build preview:** `npm install` then `npm run dev` for hot reload, or `npm run build && npm run preview` to serve the optimized bundle from `dist/`.
+- **Publish to GitHub Pages:** From `main`, run `npm run build`, check out the `gh-pages` branch, replace its contents with the freshly built `dist/` files, commit, and `git push origin gh-pages`. Switch back to `main` afterward so ongoing development stays on the source branch.
+- **Live demo:** https://ekimroyrp.github.io/251108_ParametricRing/
